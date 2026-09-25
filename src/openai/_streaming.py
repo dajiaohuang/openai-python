@@ -79,6 +79,9 @@ class Stream(Generic[_T]):
                         error = data.get("error")
                         if is_mapping(error):
                             message = error.get("message")
+                        # Per the API spec, message may be at the top level, not nested in error
+                        if not message or not isinstance(message, str):
+                            message = data.get("message")
                         if not message or not isinstance(message, str):
                             message = "An error occurred during streaming"
 
@@ -96,6 +99,9 @@ class Stream(Generic[_T]):
                         error = data.get("error")
                         if is_mapping(error):
                             message = error.get("message")
+                        # Per the API spec, message may be at the top level, not nested in error
+                        if not message or not isinstance(message, str):
+                            message = data.get("message")
                         if not message or not isinstance(message, str):
                             message = "An error occurred during streaming"
 
@@ -194,6 +200,9 @@ class AsyncStream(Generic[_T]):
                         error = data.get("error")
                         if is_mapping(error):
                             message = error.get("message")
+                        # Per the API spec, message may be at the top level, not nested in error
+                        if not message or not isinstance(message, str):
+                            message = data.get("message")
                         if not message or not isinstance(message, str):
                             message = "An error occurred during streaming"
 
@@ -211,6 +220,9 @@ class AsyncStream(Generic[_T]):
                         error = data.get("error")
                         if is_mapping(error):
                             message = error.get("message")
+                        # Per the API spec, message may be at the top level, not nested in error
+                        if not message or not isinstance(message, str):
+                            message = data.get("message")
                         if not message or not isinstance(message, str):
                             message = "An error occurred during streaming"
 
