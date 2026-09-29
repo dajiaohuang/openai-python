@@ -9,12 +9,50 @@ from pydantic import BaseModel
 from openai import OpenAI, AsyncOpenAI
 from openai._types import omit
 from openai._models import construct_type_unchecked
-from openai.types.responses import Response, ToolParam
+from openai.types.responses import Response, ToolParam, ResponseOutputText
 from openai.lib._parsing._responses import parse_response
 
 
 class Answer(BaseModel):
     answer: int
+
+
+def test_response_model_accepts_null_output_text() -> None:
+    response = Response.model_validate(
+        {
+            "id": "resp_test",
+            "created_at": 0,
+            "model": "test-model",
+            "object": "response",
+            "output": [
+                {
+                    "id": "msg_test",
+                    "type": "message",
+                    "status": "completed",
+                    "role": "assistant",
+                    "content": [
+                        {"type": "output_text", "text": None, "annotations": [], "logprobs": []},
+                    ],
+                }
+            ],
+            "parallel_tool_calls": True,
+            "tool_choice": "auto",
+            "tools": [],
+        }
+    )
+
+    output_text = response.output[0].content[0]
+    assert output_text.type == "output_text"
+    assert output_text.text is None
+    assert response.output_text == ""
+
+
+def test_response_output_text_accepts_null_value() -> None:
+    output_text = ResponseOutputText.model_validate(
+        {"type": "output_text", "text": None, "annotations": [], "logprobs": []}
+    )
+
+    assert output_text.text is None
 
 
 @pytest.mark.parametrize("sync", [True, False], ids=["sync", "async"])
