@@ -191,7 +191,8 @@ async def test_parse_skips_commentary(
 
 
 @pytest.mark.parametrize("sync", [True, False], ids=["sync", "async"])
-async def test_parse_skips_null_output_text(sync: bool) -> None:
+@pytest.mark.parametrize("text", [None, ""], ids=["null", "empty"])
+async def test_parse_skips_null_or_empty_output_text(sync: bool, text: str | None) -> None:
     output = [
         {
             "id": "msg_test",
@@ -200,7 +201,7 @@ async def test_parse_skips_null_output_text(sync: bool) -> None:
             "status": "completed",
             "phase": "final_answer",
             "content": [
-                {"type": "output_text", "text": None, "annotations": [], "logprobs": []},
+                {"type": "output_text", "text": text, "annotations": [], "logprobs": []},
                 {"type": "output_text", "text": '{"answer":"hello"}', "annotations": [], "logprobs": []},
             ],
         }
@@ -212,12 +213,25 @@ async def test_parse_skips_null_output_text(sync: bool) -> None:
     assert message.type == "message"
     null_content, valid_content = message.content
     assert null_content.type == "output_text"
-    assert null_content.text is None
+    assert null_content.text == text
     assert null_content.parsed is None
     assert valid_content.type == "output_text"
     assert valid_content.parsed == Result(answer="hello")
     assert response.output_parsed == Result(answer="hello")
     assert response.output_text == '{"answer":"hello"}'
+
+
+@pytest.mark.parametrize("sync", [True, False], ids=["sync", "async"])
+async def test_stream_skips_empty_final_text_done(sync: bool) -> None:
+    events = _events("Preparing.", "")
+
+    emitted, final = await _stream(sync, events)
+
+    done = [event for event in emitted if event.type == "response.output_text.done"]
+    assert [event.text for event in done] == ["Preparing.", ""]
+    assert [event.parsed for event in done] == [None, None]
+    assert final.output_parsed is None
+    assert final.output_text == "Preparing."
 
 
 @pytest.mark.parametrize("sync", [True, False], ids=["sync", "async"])
