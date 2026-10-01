@@ -143,7 +143,7 @@ def parse_response(
     )
 
 
-def parse_text(text: str, text_format: type[TextFormatT] | Omit, *, phase: str | None) -> TextFormatT | None:
+def parse_text(text: str | None, text_format: type[TextFormatT] | Omit, *, phase: str | None) -> TextFormatT | None:
     """Parse final-answer text, retaining legacy behavior for messages without a phase.
 
     Explicit phases other than `final_answer` are not structured results. Leave
@@ -151,6 +151,9 @@ def parse_text(text: str, text_format: type[TextFormatT] | Omit, *, phase: str |
     Both completed responses and streamed text-done events use this rule.
     """
     if phase is not None and phase != "final_answer":
+        return None
+
+    if not text:
         return None
 
     if not is_given(text_format):

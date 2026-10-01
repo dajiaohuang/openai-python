@@ -8,13 +8,118 @@ from pydantic import BaseModel
 
 from openai import OpenAI, AsyncOpenAI
 from openai._types import omit
+from openai._compat import model_parse
 from openai._models import construct_type_unchecked
-from openai.types.responses import Response, ToolParam
+from openai.types.responses import Response, ToolParam, ResponseOutputText
 from openai.lib._parsing._responses import parse_response
 
 
 class Answer(BaseModel):
     answer: int
+
+
+def test_response_model_accepts_null_output_text() -> None:
+    response = model_parse(
+        Response,
+        {
+            "id": "resp_test",
+            "created_at": 0,
+            "model": "test-model",
+            "object": "response",
+            "output": [
+                {
+                    "id": "msg_test",
+                    "type": "message",
+                    "status": "completed",
+                    "role": "assistant",
+                    "content": [
+                        {"type": "output_text", "text": None, "annotations": [], "logprobs": []},
+                    ],
+                }
+            ],
+            "parallel_tool_calls": True,
+            "tool_choice": "auto",
+            "tools": [],
+        },
+    )
+
+    message = response.output[0]
+    assert message.type == "message"
+    output_text = message.content[0]
+    assert output_text.type == "output_text"
+    assert output_text.text is None
+    assert response.output_text == ""
+
+
+def test_response_output_text_accepts_null_value() -> None:
+    output_text = model_parse(
+        ResponseOutputText, {"type": "output_text", "text": None, "annotations": [], "logprobs": []}
+    )
+
+    assert output_text.text is None
+
+
+@pytest.mark.parametrize("sync", [True, False], ids=["sync", "async"])
+async def test_stream_accumulates_deltas_after_null_text(sync: bool) -> None:
+    text = '{"answer": 4}'
+    part: dict[str, object] = {"type": "output_text", "text": None, "annotations": [], "logprobs": []}
+    message: dict[str, object] = {
+        "id": "msg_test",
+        "type": "message",
+        "role": "assistant",
+        "status": "in_progress",
+        "content": [],
+    }
+    events: list[dict[str, object]] = [
+        {"type": "response.created", "response": {"id": "resp_test", "status": "in_progress", "output": []}},
+        {"type": "response.output_item.added", "output_index": 0, "item": message},
+        {
+            "type": "response.content_part.added",
+            "output_index": 0,
+            "content_index": 0,
+            "item_id": "msg_test",
+            "part": part,
+        },
+        {
+            "type": "response.output_text.delta",
+            "output_index": 0,
+            "content_index": 0,
+            "item_id": "msg_test",
+            "delta": text,
+            "logprobs": [],
+        },
+        {
+            "type": "response.completed",
+            "response": {
+                "id": "resp_test",
+                "status": "completed",
+                "output": [{**message, "status": "completed", "content": [{**part, "text": text}]}],
+            },
+        },
+    ]
+    body = "".join(
+        f"data: {json.dumps({**event, 'sequence_number': index})}\n\n" for index, event in enumerate(events)
+    ).encode()
+    transport = httpx2.MockTransport(
+        lambda _request: httpx2.Response(200, content=body, headers={"content-type": "text/event-stream"})
+    )
+    if sync:
+        with OpenAI(api_key="fake-test-key", http_client=httpx2.Client(transport=transport)) as client:
+            with client.responses.stream(model="test-model", input="test", text_format=Answer) as stream:
+                emitted = list(stream)
+                final = stream.get_final_response()
+    else:
+        async with AsyncOpenAI(
+            api_key="fake-test-key", http_client=httpx2.AsyncClient(transport=transport)
+        ) as async_client:
+            async with async_client.responses.stream(
+                model="test-model", input="test", text_format=Answer
+            ) as async_stream:
+                emitted = [event async for event in async_stream]
+                final = await async_stream.get_final_response()
+    delta = next(event for event in emitted if event.type == "response.output_text.delta")
+    assert delta.snapshot == text
+    assert final.output_parsed == Answer(answer=4)
 
 
 @pytest.mark.parametrize("sync", [True, False], ids=["sync", "async"])
