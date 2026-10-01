@@ -193,7 +193,7 @@ async def test_parse_skips_commentary(
 @pytest.mark.parametrize("sync", [True, False], ids=["sync", "async"])
 @pytest.mark.parametrize("text", [None, ""], ids=["null", "empty"])
 async def test_parse_skips_null_or_empty_output_text(sync: bool, text: str | None) -> None:
-    output = [
+    output: list[dict[str, Any]] = [
         {
             "id": "msg_test",
             "type": "message",

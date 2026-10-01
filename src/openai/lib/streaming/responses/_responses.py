@@ -271,7 +271,7 @@ class ResponseStreamState(Generic[TextFormatT]):
                     sequence_number=event.sequence_number,
                     logprobs=event.logprobs,
                     type="response.output_text.delta",
-                    snapshot=content.text,
+                    snapshot=content.text or "",
                 )
             )
         elif event.type == "response.output_text.done":
@@ -360,7 +360,7 @@ class ResponseStreamState(Generic[TextFormatT]):
             if output.type == "message":
                 content = output.content[event.content_index]
                 assert content.type == "output_text"
-                content.text += event.delta
+                content.text = (content.text or "") + event.delta
         elif event.type == "response.function_call_arguments.delta":
             output = self._get_output_item(event.output_index)
             if output.type == "function_call":
